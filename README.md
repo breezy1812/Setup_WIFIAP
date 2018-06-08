@@ -12,7 +12,7 @@
 2.發出去沒有IP  
 3.有IP卻無法連上網路 
 
-因為多數文章細節的版本實在太多了，我想說統整一個比較完整且詳細的版本，
+因為多數文章細節的版本實在太多了，我想說統整一個比較完整且詳細的版本。
 
 ## 1.網路設定
 
@@ -32,9 +32,11 @@
     static domain_search=8.8.4.4
 
 以上儲存後，下次再用ssh連結就不用再找一次位址，固定位址就是`ip_adress`
-***這是分隔線
+
+***
 以上寫法我後來發現，如果把乙太網路差到網路孔上，反而會無法上網，可能原因是我們把IP及routers固定了，如果換成其他網域可能轉發會出問題。
-所以其實不要去更改反而會比較好
+所以其實不要去更改反而會比較好。
+***
 
 接下來我們要先去設定無線網路`wlan0`的部分
 
@@ -63,7 +65,7 @@
 
 ## 2. DHCP設定
 
-這部分分成兩種方法，如果遇到瓶頸可以交互嘗試。
+這部分分成兩種方法，其實個人推薦使用第二種，不過兩者可以交互嘗試。
 
 ### 2.1 isc-dhcp-sever
 先在樹莓派安裝DHCP伺服器
@@ -76,9 +78,9 @@
 
 將以下全槓掉
 
-    option definitions common to all supported networks...
-    option domain-name "example.org";
-    option domain-name-servers ns1.example.org, ns2.example.org;
+    #option definitions common to all supported networks...
+    #option domain-name "example.org";
+    #option domain-name-servers ns1.example.org, ns2.example.org;
 
 並在任一定點，設定此為DHCP官方伺服器
 
@@ -96,11 +98,8 @@
     }
 
 完成後存檔。
-接著我們要此服務的`interface`設定指到`wlan0`
-
-    sudo nano /etc/default/isc-dhcp-server
-
-找到特定行，進行編輯
+接著我們要將此服務的`interface`設定指到`wlan0`
+所以先進到`/etc/default/isc-dhcp-server`找到特定行，進行編輯
 
     #On what interfaces should the DHCP server (dhcpd) serve DHCP requests?
     #Separate multiple interfaces with spaces, e.g. "eth0 eth1".
@@ -111,7 +110,7 @@
 
     sudo server isc-dhcp-server restart
 
-如果有無法解決的錯誤，可以看看2.2的方法，沒問題的話可繼續到3.轉發設定
+如果有無法解決的錯誤或者是走到後面還是有問題，可以看看2.2的方法，沒問題的話可繼續到3.轉發設定
 
 ### 2.2 DNSMASQ
 
@@ -167,21 +166,27 @@
 
 接著設定NAT
 
+    sudo iptables -F
+    sudo iptables -F -t nat
     sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
     sudo iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
     sudo iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT
 
 這裡也是很長一串，常會寫錯字，要稍微小心檢查一下。
+如果之後想要讓下面的裝置能互通的的話，可以再增加一行
+
+    sudo iptables -A Forward -i wlan0 -o wlan0 -j ACCEPT
+
 接著，因為我們不想每次都要改一次設定，我們把這一串設定先存起來。
 
     sudo sh -c "iptables-save > /etc/iptables.ipv4.nat"
 
-然後讓每次開機後都會去套用這些設定，我們到` /etc/rc.local`，在`exit 0`之前將入下面兩行
+然後讓每次開機後都會去套用以上兩個設定，我們到` /etc/rc.local`，在`exit 0`之前將入下面兩行
 
     sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
     sudo iptables-restore < /etc/iptables.ipv4.nat
 
-完成後存檔，這樣之後開機就會自動設定nat。
+完成後存檔，這樣之後開機就會自動設定nat並開啟轉發功能了。
 
 ## 4.Hostapd設定
 
@@ -190,8 +195,9 @@
 
 大多數的文章都是說直接下載，但這邊我到是失敗了很多次，後來外國的論壇有提到，
 直接去他們開發源找到最新版driver才能完美支援樹莓派3B的無線網卡。
-網址如下
-https://wireless.wiki.kernel.org/en/users/documentation/hostapd?s[]=hostapd
+
+[參考討論串](https://www.raspberrypi.org/forums/viewtopic.php?t=74193)
+[參考網址](https://wireless.wiki.kernel.org/en/users/documentation/hostapd?s[]=hostapd)
 
 首先我們先安裝最新版本，下載需要一小段時間。
 
@@ -260,10 +266,13 @@ https://wireless.wiki.kernel.org/en/users/documentation/hostapd?s[]=hostapd
 然後第二天才到最新的hostapd成功把IP發給我的手機，但是卻一直無法上網，
 經過幾次調整轉發設定檔和hostspd.conf之後終於能上網了。
 
-不過這也只是樹莓派3B的程序，基本上跟網路文章八九不離十，不過軟硬體不斷在更新，文章無法更新到的也只能找一些Q&A
+不過這也只是樹莓派3B的程序，基本上跟網路文章八九不離十，不過軟硬體不斷在更新，文章無法更新到的也只能去找一些Q&A
 如果我有寫錯、或是用詞錯誤、抑或是我誤解的部分，也歡迎指教。
 希望你也能成功設定。
 
-
+[參考網址一](https://blog.gtwang.org/iot/setup-raspberry-pi-as-wireless-access-point/)
+[參考網址二](http://atceiling.blogspot.com/2017/02/raspberry-pi-wireless-access-point.html)
+[參考網址三](https://blog.csdn.net/weixin_41656968/article/details/79818033)
+[參考網址四](http://blog.itist.tw/2016/03/using-raspberry-pi-3-as-wifi-ap-with-raspbian-jessie.html)
 
   
